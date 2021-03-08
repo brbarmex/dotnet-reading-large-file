@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 
@@ -12,10 +13,13 @@ namespace FastProcess
 
         private static void Main()
         {
+            var gen0 = GC.CollectionCount(0);
+            var gen1 = GC.CollectionCount(1);
+            var gen2 = GC.CollectionCount(2);
+
             Span<byte> freelancer = Encoding.UTF8.GetBytes("FREE-LANCER").AsSpan();
             Span<byte> consult = Encoding.UTF8.GetBytes("CONSULTOR").AsSpan();
             Span<byte> pde = Encoding.UTF8.GetBytes("PDE").AsSpan();
-
             Span<decimal> totalSales = stackalloc decimal[3];
             Span<int> ammounts = stackalloc int[3];
 
@@ -23,6 +27,8 @@ namespace FastProcess
             int bytesConsumed = 0;
             using var fs = File.OpenRead(pathFile);
             byte[] bytesChunk = new byte[fs.Length];
+            var sw = new Stopwatch();
+            sw.Start();
 
             int byteRead;
             while ((byteRead = fs.Read(bytesChunk, bytesOffSet, bytesChunk.Length - bytesOffSet)) > 0)
@@ -51,10 +57,14 @@ namespace FastProcess
                 bytesOffSet -= bytesConsumed;
                 bytesConsumed = 0;
             }
+            sw.Stop();
 
+            Console.WriteLine("----------------------------------------------------------------------");
             Console.WriteLine($"PDE..........total_vendido: {totalSales[0]}  quantidade: {ammounts[0]}");
             Console.WriteLine($"CONSULTOR....total_vendido: {totalSales[1]}  quantidade: {ammounts[1]}");
             Console.WriteLine($"FREELANCER...total_vendido: {totalSales[2]}  quantidade: {ammounts[2]}");
+            Console.WriteLine("----------------------------------------------------------------------");
+            Console.WriteLine($"Gen0: {GC.CollectionCount(0) - gen0} |Gen1: {GC.CollectionCount(1) - gen1} |Gen2: {GC.CollectionCount(2) - gen2} |Temp: {sw.ElapsedMilliseconds} ms |Allocated: {Process.GetCurrentProcess().WorkingSet64 / 1024 / 1024} MB");
         }
 
         internal static void AddTotalToTheSum(ref Span<byte> totalSale, ref Span<byte> ammountSale, ref decimal total, ref int ammount)
