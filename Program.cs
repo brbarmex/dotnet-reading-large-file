@@ -7,10 +7,6 @@ namespace FastProcess
 {
     internal static class Program
     {
-        private const byte lineBreakChar = (byte)'\n';
-        private const byte semiColonChar = (byte)';';
-        private const string pathFile = "person_x_sale.csv";
-
         private static void Main()
         {
             var gen0 = GC.CollectionCount(0);
@@ -24,9 +20,9 @@ namespace FastProcess
             Span<int> ammounts = stackalloc int[3];
 
             int bytesOffSet = 0;
-            int bytesConsumed = 0;
-            using var fs = File.OpenRead(pathFile);
-            byte[] bytesChunk = new byte[fs.Length];
+            int bytesConsumed = 0 ;
+            using var fs = File.OpenRead("personxsales.csv");
+            byte[] bytesChunk = new byte[1024];
             var sw = new Stopwatch();
             sw.Start();
 
@@ -36,19 +32,27 @@ namespace FastProcess
                 bytesOffSet += byteRead;
                 int position;
 
-                while ((position = Array.IndexOf(bytesChunk, lineBreakChar, bytesConsumed, bytesOffSet - bytesConsumed)) > 0)
+                while ((position = Array.IndexOf(bytesChunk, (byte)'\n', bytesConsumed, bytesOffSet - bytesConsumed)) > 0)
                 {
                     Span<byte> line = new(bytesChunk, bytesConsumed, position-bytesConsumed);
                     Span<byte> responsibility = GetValueBetweenSemicolon(line, 2);
                     Span<byte> ammountSale = GetValueBetweenSemicolon(line, 4);
-                    Span<byte> totalSale = GetValueBetweenSemicolon(line, 5);
 
                     if(responsibility.SequenceEqual(freelancer))
-                        AddTotalToTheSum(ref totalSale, ref ammountSale, ref totalSales[0], ref ammounts[0]);
+                    {
+                        AddSumTotalSales(line, ref totalSales[0]);
+                        AddSumAmmountSales(ammountSale, ref ammounts[0]);
+                    }
                     else if(responsibility.SequenceEqual(consult))
-                        AddTotalToTheSum(ref totalSale, ref ammountSale, ref totalSales[1], ref ammounts[1]);
+                    {
+                        AddSumTotalSales(line, ref totalSales[1]);
+                        AddSumAmmountSales(ammountSale, ref ammounts[1]);
+                    }
                     else if(responsibility.SequenceEqual(pde))
-                        AddTotalToTheSum(ref totalSale, ref ammountSale, ref totalSales[2], ref ammounts[2]);
+                    {
+                        AddSumTotalSales(line, ref totalSales[2]);
+                       AddSumAmmountSales(ammountSale, ref ammounts[2]);
+                    }
 
                     bytesConsumed += position - bytesConsumed + 1;
                 }
@@ -67,15 +71,13 @@ namespace FastProcess
             Console.WriteLine($"Gen0: {GC.CollectionCount(0) - gen0} |Gen1: {GC.CollectionCount(1) - gen1} |Gen2: {GC.CollectionCount(2) - gen2} |Temp: {sw.ElapsedMilliseconds} ms |Allocated: {Process.GetCurrentProcess().WorkingSet64 / 1024 / 1024} MB");
         }
 
-        internal static void AddTotalToTheSum(ref Span<byte> totalSale, ref Span<byte> ammountSale, ref decimal total, ref int ammount)
-        {
-            total += decimal.Parse(Encoding.UTF8.GetString(totalSale));
-            ammount += int.Parse(Encoding.UTF8.GetString(ammountSale));
-        }
+        internal static void AddSumAmmountSales(Span<byte> ammountSale, ref int ammount)
+        => ammount += int.Parse(Encoding.UTF8.GetString(ammountSale));
+
+        internal static void AddSumTotalSales(Span<byte> line, ref decimal totalSale)
+        => totalSale += decimal.Parse(Encoding.UTF8.GetString(line[(line.LastIndexOf((byte)';') + 1)..]));
 
         internal static Span<byte> GetValueBetweenSemicolon(Span<byte> line, int positionInLine)
-        => positionInLine <= 0
-            ? line.Slice(0, line.IndexOf(semiColonChar) > 0 ? line.IndexOf(semiColonChar) : line.Length)
-            : GetValueBetweenSemicolon(line[(line.IndexOf(semiColonChar)+1)..], positionInLine - 1);
+        => positionInLine <= 0 ? line.Slice(0, line.IndexOf((byte)';') > 0 ? line.IndexOf((byte)';') : line.Length) : GetValueBetweenSemicolon(line[(line.IndexOf((byte)';') + 1)..], positionInLine - 1);
     }
 }
