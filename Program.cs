@@ -16,8 +16,8 @@ namespace FastProcess
             Span<byte> consult = Encoding.UTF8.GetBytes("CONSULTOR").AsSpan();
             Span<byte> pde = Encoding.UTF8.GetBytes("PDE").AsSpan();
 
-            decimal totalSaleByFreelancer = 0, totalSaleByConsult = 0, totalSaleByPDE = 0;
-            int ammountSaleByFreelancer = 0, ammountSaleByConsult = 0, ammountSaleByPDE = 0;
+            Span<decimal> totalSales = stackalloc decimal[3];
+            Span<int> ammounts = stackalloc int[3];
 
             int bytesOffSet = 0;
             int bytesConsumed = 0;
@@ -38,11 +38,11 @@ namespace FastProcess
                     Span<byte> totalSale = GetValueBetweenSemicolon(line, 5);
 
                     if(responsibility.SequenceEqual(freelancer))
-                        AddTotalToTheSum(ref totalSale, ref ammountSale, ref totalSaleByFreelancer, ref ammountSaleByFreelancer);
+                        AddTotalToTheSum(ref totalSale, ref ammountSale, ref totalSales[0], ref ammounts[0]);
                     else if(responsibility.SequenceEqual(consult))
-                        AddTotalToTheSum(ref totalSale, ref ammountSale, ref totalSaleByConsult, ref ammountSaleByConsult);
+                        AddTotalToTheSum(ref totalSale, ref ammountSale, ref totalSales[1], ref ammounts[1]);
                     else if(responsibility.SequenceEqual(pde))
-                        AddTotalToTheSum(ref totalSale, ref ammountSale, ref totalSaleByPDE, ref ammountSaleByPDE);
+                        AddTotalToTheSum(ref totalSale, ref ammountSale, ref totalSales[2], ref ammounts[2]);
 
                     bytesConsumed += position - bytesConsumed + 1;
                 }
@@ -52,9 +52,9 @@ namespace FastProcess
                 bytesConsumed = 0;
             }
 
-            Console.WriteLine($"PDE..........total_vendido: {totalSaleByPDE}  quantidade: {ammountSaleByPDE}");
-            Console.WriteLine($"CONSULTOR....total_vendido: {totalSaleByConsult}  quantidade: {ammountSaleByConsult}");
-            Console.WriteLine($"FREELANCER...total_vendido: {totalSaleByFreelancer}  quantidade: {ammountSaleByFreelancer}");
+            Console.WriteLine($"PDE..........total_vendido: {totalSales[0]}  quantidade: {ammounts[0]}");
+            Console.WriteLine($"CONSULTOR....total_vendido: {totalSales[1]}  quantidade: {ammounts[1]}");
+            Console.WriteLine($"FREELANCER...total_vendido: {totalSales[2]}  quantidade: {ammounts[2]}");
         }
 
         internal static void AddTotalToTheSum(ref Span<byte> totalSale, ref Span<byte> ammountSale, ref decimal total, ref int ammount)
