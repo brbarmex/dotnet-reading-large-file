@@ -5,7 +5,7 @@ using System.Text;
 
 namespace FastProcess
 {
-    internal static class Program
+    internal struct Program
     {
         private static void Main()
         {
@@ -13,14 +13,14 @@ namespace FastProcess
             var gen1 = GC.CollectionCount(1);
             var gen2 = GC.CollectionCount(2);
 
-            Span<byte> freelancer = Encoding.UTF8.GetBytes("FREE-LANCER").AsSpan();
-            Span<byte> consult = Encoding.UTF8.GetBytes("CONSULTOR").AsSpan();
-            Span<byte> pde = Encoding.UTF8.GetBytes("PDE").AsSpan();
+            byte[] freelancer = Encoding.UTF8.GetBytes("FREE-LANCER");
+            byte[] consult = Encoding.UTF8.GetBytes("CONSULTOR");
+            byte[] pde = Encoding.UTF8.GetBytes("PDE");
             Span<decimal> totalSales = stackalloc decimal[3];
             Span<int> ammounts = stackalloc int[3];
 
             int bytesOffSet = 0;
-            int bytesConsumed = 0 ;
+            int bytesConsumed = 0;
             using var fs = File.OpenRead("personxsales.csv");
             byte[] bytesChunk = new byte[1024];
             var sw = new Stopwatch();
@@ -34,48 +34,94 @@ namespace FastProcess
 
                 while ((position = Array.IndexOf(bytesChunk, (byte)'\n', bytesConsumed, bytesOffSet - bytesConsumed)) > 0)
                 {
-                    Span<byte> line = new(bytesChunk, bytesConsumed, position-bytesConsumed);
-                    Span<byte> responsibility = GetValueBetweenSemicolon(line, 2);
-                    Span<byte> ammountSale = GetValueBetweenSemicolon(line, 4);
+                    Span<byte> line = new(bytesChunk, bytesConsumed, position - bytesConsumed);
+
+                    var (rIndex, rLength) = GetPosition(line, 2);
+                    var (aIndex, aLength) = GetPosition(line,4);
+                    var (tIndex, tLength) = GetPosition(line,5);
+
+                    Span<byte> responsibility = line.Slice(rIndex, rLength);
+                    Span<byte> ammountSale = line.Slice(aIndex, aLength);
+                    Span<byte> totalSale = line[tIndex..];
 
                     if(responsibility.SequenceEqual(freelancer))
                     {
-                        AddSumTotalSales(line, ref totalSales[0]);
-                        AddSumAmmountSales(ammountSale, ref ammounts[0]);
+                       AddSumTotalSales(totalSale, ref totalSales[0]);
+                       AddSumAmmountSales(ammountSale, ref ammounts[0]);
                     }
                     else if(responsibility.SequenceEqual(consult))
                     {
-                        AddSumTotalSales(line, ref totalSales[1]);
-                        AddSumAmmountSales(ammountSale, ref ammounts[1]);
+                       AddSumTotalSales(totalSale, ref totalSales[1]);
+                       AddSumAmmountSales(ammountSale, ref ammounts[1]);
                     }
                     else if(responsibility.SequenceEqual(pde))
                     {
-                        AddSumTotalSales(line, ref totalSales[2]);
+                       AddSumTotalSales(totalSale, ref totalSales[2]);
                        AddSumAmmountSales(ammountSale, ref ammounts[2]);
                     }
 
                     bytesConsumed += position - bytesConsumed + 1;
                 }
 
-                Array.Copy(bytesChunk, bytesConsumed, bytesChunk, 0, bytesOffSet - bytesConsumed);
+                Buffer.BlockCopy(bytesChunk, bytesConsumed, bytesChunk, 0, bytesOffSet - bytesConsumed);
                 bytesOffSet -= bytesConsumed;
                 bytesConsumed = 0;
             }
             sw.Stop();
 
             Console.WriteLine("----------------------------------------------------------------------");
-            Console.WriteLine($"PDE..........total_vendido: {totalSales[0]}  quantidade: {ammounts[0]}");
+            Console.WriteLine($"FREELANCER...total_vendido: {totalSales[0]}  quantidade: {ammounts[0]}");
             Console.WriteLine($"CONSULTOR....total_vendido: {totalSales[1]}  quantidade: {ammounts[1]}");
-            Console.WriteLine($"FREELANCER...total_vendido: {totalSales[2]}  quantidade: {ammounts[2]}");
+            Console.WriteLine($"PDe..........total_vendido: {totalSales[2]}  quantidade: {ammounts[2]}");
             Console.WriteLine("----------------------------------------------------------------------");
             Console.WriteLine($"Gen0: {GC.CollectionCount(0) - gen0} |Gen1: {GC.CollectionCount(1) - gen1} |Gen2: {GC.CollectionCount(2) - gen2} |Temp: {sw.ElapsedMilliseconds} ms |Allocated: {Process.GetCurrentProcess().WorkingSet64 / 1024 / 1024} MB");
+        }
+
+        internal static (int StartIndex, int Length) GetPosition(Span<byte> line, int countLoop)
+        {
+            int start = 0;
+            int rounds = 0;
+
+            for (int index = 0; index < line.Length; index++)
+            {
+                if (line[index] == (byte)';')
+                {
+                    rounds++;
+
+                    if (countLoop == rounds)
+                    {
+                        start = index + 1;
+                        break;
+                    }
+                }
+            }
+
+            int end = rounds = 0;
+
+            if (countLoop != 5)
+            {
+                for (int index = start; index < line.Length; index++)
+                {
+                    rounds++;
+                    if (line[index] == (byte)';' || line[index] == (byte)'\n')
+                    {
+                        end = rounds - 1;
+                        break;
+                    }
+                }
+            }
+
+            if (end == 0)
+                end = line.Length - 2;
+
+            return (start, end);
         }
 
         internal static void AddSumAmmountSales(Span<byte> ammountSale, ref int ammount)
         => ammount += int.Parse(Encoding.UTF8.GetString(ammountSale));
 
         internal static void AddSumTotalSales(Span<byte> line, ref decimal totalSale)
-        => totalSale += decimal.Parse(Encoding.UTF8.GetString(line[(line.LastIndexOf((byte)';') + 1)..]));
+        => totalSale += decimal.Parse(Encoding.UTF8.GetString(line));
 
         internal static Span<byte> GetValueBetweenSemicolon(Span<byte> line, int positionInLine)
         => positionInLine <= 0 ? line.Slice(0, line.IndexOf((byte)';') > 0 ? line.IndexOf((byte)';') : line.Length) : GetValueBetweenSemicolon(line[(line.IndexOf((byte)';') + 1)..], positionInLine - 1);
