@@ -18,6 +18,7 @@ namespace FastProcess
             byte[] pde = Encoding.UTF8.GetBytes("PDE");
             Span<decimal> totalSales = stackalloc decimal[3];
             Span<int> ammounts = stackalloc int[3];
+            Span<byte> line, responsibility, ammountSale, totalSale;
 
             int bytesOffSet = 0;
             int bytesConsumed = 0;
@@ -34,15 +35,16 @@ namespace FastProcess
 
                 while ((position = Array.IndexOf(bytesChunk, (byte)'\n', bytesConsumed, bytesOffSet - bytesConsumed)) > 0)
                 {
-                    Span<byte> line = new(bytesChunk, bytesConsumed, position - bytesConsumed);
+                    line = new(bytesChunk, bytesConsumed, position - bytesConsumed);
 
                     var (rIndex, rLength) = GetPosition(line, 2);
-                    var (aIndex, aLength) = GetPosition(line,4);
-                    var (tIndex, tLength) = GetPosition(line,5);
+                    responsibility = line.Slice(rIndex, rLength);
 
-                    Span<byte> responsibility = line.Slice(rIndex, rLength);
-                    Span<byte> ammountSale = line.Slice(aIndex, aLength);
-                    Span<byte> totalSale = line[tIndex..];
+                    var (aIndex, aLength) = GetPosition(line,4);
+                    ammountSale = line.Slice(aIndex, aLength);
+
+                    var (tIndex, tLength) = GetPosition(line,5);
+                    totalSale = line[tIndex..];
 
                     if(responsibility.SequenceEqual(freelancer))
                     {
@@ -72,7 +74,7 @@ namespace FastProcess
             Console.WriteLine("----------------------------------------------------------------------");
             Console.WriteLine($"FREELANCER...total_vendido: {totalSales[0]}  quantidade: {ammounts[0]}");
             Console.WriteLine($"CONSULTOR....total_vendido: {totalSales[1]}  quantidade: {ammounts[1]}");
-            Console.WriteLine($"PDe..........total_vendido: {totalSales[2]}  quantidade: {ammounts[2]}");
+            Console.WriteLine($"PDE..........total_vendido: {totalSales[2]}  quantidade: {ammounts[2]}");
             Console.WriteLine("----------------------------------------------------------------------");
             Console.WriteLine($"Gen0: {GC.CollectionCount(0) - gen0} |Gen1: {GC.CollectionCount(1) - gen1} |Gen2: {GC.CollectionCount(2) - gen2} |Temp: {sw.ElapsedMilliseconds} ms |Allocated: {Process.GetCurrentProcess().WorkingSet64 / 1024 / 1024} MB");
         }
@@ -118,7 +120,7 @@ namespace FastProcess
         }
 
         internal static void AddSumAmmountSales(Span<byte> ammountSale, ref int ammount)
-        => ammount += int.Parse(Encoding.UTF8.GetString(ammountSale));
+        => ammount += Int16.Parse(Encoding.UTF8.GetString(ammountSale));
 
         internal static void AddSumTotalSales(Span<byte> line, ref decimal totalSale)
         => totalSale += decimal.Parse(Encoding.UTF8.GetString(line));
