@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -23,7 +24,7 @@ namespace FastProcess
             int bytesOffSet = 0;
             int bytesConsumed = 0;
             using var fs = File.OpenRead("personxsales.csv");
-            byte[] bytesChunk = new byte[1024];
+            byte[] bytesChunk = ArrayPool<byte>.Shared.Rent(1600 * 8);
             var sw = new Stopwatch();
             sw.Start();
 
@@ -46,21 +47,12 @@ namespace FastProcess
                     var (tIndex, tLength) = GetPosition(line,5);
                     totalSale = line[tIndex..];
 
-                    if(responsibility.SequenceEqual(freelancer))
-                    {
-                       AddSumTotalSales(totalSale, ref totalSales[0]);
-                       AddSumAmmountSales(ammountSale, ref ammounts[0]);
-                    }
+                    if (responsibility.SequenceEqual(freelancer))
+                        ExecuteCalculation(ammountSale, totalSale, ref ammounts[0], ref totalSales[0]);
                     else if(responsibility.SequenceEqual(consult))
-                    {
-                       AddSumTotalSales(totalSale, ref totalSales[1]);
-                       AddSumAmmountSales(ammountSale, ref ammounts[1]);
-                    }
+                        ExecuteCalculation(ammountSale, totalSale, ref ammounts[1], ref totalSales[1]);
                     else if(responsibility.SequenceEqual(pde))
-                    {
-                       AddSumTotalSales(totalSale, ref totalSales[2]);
-                       AddSumAmmountSales(ammountSale, ref ammounts[2]);
-                    }
+                        ExecuteCalculation(ammountSale, totalSale, ref ammounts[2], ref totalSales[2]);
 
                     bytesConsumed += position - bytesConsumed + 1;
                 }
@@ -105,7 +97,7 @@ namespace FastProcess
                 for (int index = start; index < line.Length; index++)
                 {
                     rounds++;
-                    if (line[index] == (byte)';' || line[index] == (byte)'\n')
+                    if (line[index] == (byte)';')
                     {
                         end = rounds - 1;
                         break;
@@ -119,11 +111,11 @@ namespace FastProcess
             return (start, end);
         }
 
-        internal static void AddSumAmmountSales(Span<byte> ammountSale, ref int ammount)
-        => ammount += Int16.Parse(Encoding.UTF8.GetString(ammountSale));
-
-        internal static void AddSumTotalSales(Span<byte> line, ref decimal totalSale)
-        => totalSale += decimal.Parse(Encoding.UTF8.GetString(line));
+        internal static void ExecuteCalculation(Span<byte> ammounts, Span<byte> sales, ref int ammount, ref decimal totalSale)
+        {
+            ammount += int.Parse(Encoding.UTF8.GetString(ammounts));
+            totalSale += decimal.Parse(Encoding.UTF8.GetString(sales));
+        }
 
         internal static Span<byte> GetValueBetweenSemicolon(Span<byte> line, int positionInLine)
         => positionInLine <= 0 ? line.Slice(0, line.IndexOf((byte)';') > 0 ? line.IndexOf((byte)';') : line.Length) : GetValueBetweenSemicolon(line[(line.IndexOf((byte)';') + 1)..], positionInLine - 1);
